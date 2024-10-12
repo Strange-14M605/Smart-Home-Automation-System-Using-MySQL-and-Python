@@ -1,0 +1,588 @@
+import tkinter as tk
+from tkinter import messagebox
+import pymysql
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+from tkinter import ttk
+
+class SmartHomeApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Smart Home Automation System")
+
+        # Main menu
+        self.main_menu()
+
+    def create_connection(self):
+        """Create a connection to the MySQL database."""
+        try:
+            connection = pymysql.connect(
+                host='localhost',  # Your MySQL server host
+                user='newuser',  # Your MySQL username
+                password='your_password',  # Your MySQL password
+                database='smart_home'  # Your MySQL database name
+            )
+            return connection
+        except pymysql.MySQLError as e:
+            print(f"Error code: {e.args[0]}, Error message: {e.args[1]}")
+            messagebox.showerror("Database Error", str(e))
+            return None
+
+    def main_menu(self):
+        """Display the main menu."""
+        self.clear_screen()
+        
+        tk.Label(self.root, text="Welcome to Smart Home Automation System", font=("Arial", 16)).pack(pady=20)
+        tk.Button(self.root, text="Log In", command=self.login, width=20).pack(pady=10)
+        tk.Button(self.root, text="Sign Up", command=self.sign_up, width=20).pack(pady=10)
+        tk.Button(self.root, text="Exit", command=self.root.quit, width=20).pack(pady=10)
+
+    def login(self):
+        """User login screen."""
+        self.clear_screen()
+        
+        tk.Label(self.root, text="Log In", font=("Arial", 16)).pack(pady=20)
+
+        tk.Label(self.root, text="User ID:").pack(pady=5)
+        self.user_id = tk.Entry(self.root)
+        self.user_id.pack(pady=5)
+
+        tk.Label(self.root, text="Password:").pack(pady=5)
+        self.user_password = tk.Entry(self.root, show='*')
+        self.user_password.pack(pady=5)
+
+        tk.Button(self.root, text="Log In", command=self.authenticate_user, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back to Main Menu", command=self.main_menu, width=20).pack(pady=10)
+
+    def sign_up(self):
+        """User sign up screen."""
+        self.clear_screen()
+        
+        tk.Label(self.root, text="Sign Up", font=("Arial", 16)).pack(pady=20)
+
+        tk.Label(self.root, text="User ID:").pack(pady=5)
+        self.new_user_id = tk.Entry(self.root)
+        self.new_user_id.pack(pady=5)
+
+        tk.Label(self.root, text="Name:").pack(pady=5)
+        self.new_user_name = tk.Entry(self.root)
+        self.new_user_name.pack(pady=5)
+
+        tk.Label(self.root, text="Mobile:").pack(pady=5)
+        self.new_user_mobile = tk.Entry(self.root)
+        self.new_user_mobile.pack(pady=5)
+
+        tk.Label(self.root, text="Password:").pack(pady=5)
+        self.new_user_password = tk.Entry(self.root, show='*')
+        self.new_user_password.pack(pady=5)
+
+        tk.Label(self.root, text="Role (user/admin):").pack(pady=5)
+        self.new_user_role = tk.Entry(self.root)
+        self.new_user_role.pack(pady=5)
+
+        tk.Label(self.root, text="Date of Birth (YYYY-MM-DD):").pack(pady=5)
+        self.new_user_dob = tk.Entry(self.root)
+        self.new_user_dob.pack(pady=5)
+
+        tk.Button(self.root, text="Sign Up", command=self.register_user, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back to Main Menu", command=self.main_menu, width=20).pack(pady=10)
+
+    def authenticate_user(self):
+        """Authenticate user based on ID and password."""
+        user_id = self.user_id.get()
+        password = self.user_password.get()
+
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                # Check user credentials and role
+                cursor.execute("SELECT role FROM User WHERE user_ID = %s AND password = %s", (user_id, password))
+                result = cursor.fetchone()
+                
+                if result:
+                    self.user_role = result[0]  # Store the user role for later use
+                    self.show_common_options()
+                else:
+                    messagebox.showerror("Login Error", "Invalid User ID or Password.")
+            connection.close()
+
+    def register_user(self):
+        """Register a new user in the database."""
+        user_id = self.new_user_id.get()
+        name = self.new_user_name.get()
+        mobile = self.new_user_mobile.get()
+        password = self.new_user_password.get()
+        role = self.new_user_role.get()
+        dob = self.new_user_dob.get()
+
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                # Insert new user into the database
+                try:
+                    cursor.execute("INSERT INTO User (user_ID, name, mobile, password, role, dob) VALUES (%s, %s, %s, %s, %s, %s)", 
+                                   (user_id, name, mobile, password, role, dob))
+                    connection.commit()
+                    messagebox.showinfo("Success", "User registered successfully!")
+                    self.clear_screen()
+                    self.main_menu()
+                except pymysql.IntegrityError:
+                    messagebox.showerror("Registration Error", "User ID already exists.")
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+            connection.close()
+
+    def show_common_options(self):
+        """Display common options after login."""
+        self.clear_screen()
+
+        tk.Label(self.root, text="Home Page", font=("Arial", 16)).pack(pady=20)
+        
+        
+
+        tk.Button(self.root, text="Show Device Stats", command=self.show_device_stats, width=20).pack(pady=10)
+
+        # Show user or admin specific options
+        if self.user_role == "admin":
+            self.show_admin_options()
+        else:
+            self.show_user_options()
+
+    def show_admin_options(self):
+        """Display admin options."""
+        tk.Button(self.root, text="Manage Automation", command=self.show_automation, width=20).pack(pady=10)
+        tk.Button(self.root, text="View Maintenance Logs", command=self.show_maintenance, width=20).pack(pady=10)
+        tk.Button(self.root, text="View Logs", command=self.display_logs, width=20).pack(pady=10)
+        tk.Button(self.root, text="Logout", command=self.main_menu, width=20).pack(pady=10)
+
+    def show_user_options(self):
+        """Display user options."""
+        tk.Button(self.root, text="Logout", command=self.main_menu, width=20).pack(pady=10)
+        
+
+
+
+#--------------------------------------------------------------------
+#AUTOMATION PART
+
+    def show_automation(self):
+        """Display current automation settings and options to create or update."""
+        self.clear_screen()
+        
+        tk.Label(self.root, text="Current Automation Settings", font=("Arial", 16)).pack(pady=20)
+
+        # Fetch and display automation settings from the database
+        automation_data = self.get_automation_data()
+        tk.Label(self.root, text=automation_data, font=("Arial", 12)).pack(pady=20)
+
+        # Buttons for creating and updating automation
+        tk.Button(self.root, text="Create New Automation", command=self.show_create_automation, width=20).pack(pady=10)
+        tk.Button(self.root, text="Update Existing Automation", command=self.show_update_automation, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+
+    def get_automation_data(self):
+        """Fetch automation data from the database."""
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT automation_ID, device_ID, user_ID, start_time, end_time FROM Automation")
+                data = cursor.fetchall()
+            connection.close()
+            
+            # Formatting the output for display
+            if data:
+                return "\n".join([
+                    f"Automation ID: {d[0]}, Device ID: {d[1]}, User ID: {d[2]}, Start Time: {d[3]}, End Time: {d[4]}"
+                    for d in data
+                ])
+            else:
+                return "No automation settings available."
+        
+        return "Database connection error."
+
+    def show_create_automation(self):
+        """Display the screen to create new automation settings."""
+        self.clear_screen()
+
+        tk.Label(self.root, text="Create New Automation", font=("Arial", 16)).pack(pady=20)
+
+        # Entry for new device ID
+        tk.Label(self.root, text="Device ID:", font=("Arial", 12)).pack(pady=5)
+        self.new_device_id_entry = tk.Entry(self.root, width=30)
+        self.new_device_id_entry.pack(pady=5)
+
+        # Entry for new user ID
+        tk.Label(self.root, text="User ID:", font=("Arial", 12)).pack(pady=5)
+        self.new_user_id_entry = tk.Entry(self.root, width=30)
+        self.new_user_id_entry.pack(pady=5)
+
+        # Entry for start time
+        tk.Label(self.root, text="Start Time (HH:MM:SS):", font=("Arial", 12)).pack(pady=5)
+        self.start_time_entry = tk.Entry(self.root, width=30)
+        self.start_time_entry.pack(pady=5)
+
+        # Entry for end time
+        tk.Label(self.root, text="End Time (HH:MM:SS):", font=("Arial", 12)).pack(pady=5)
+        self.end_time_entry = tk.Entry(self.root, width=30)
+        self.end_time_entry.pack(pady=5)
+
+        # Button to create new automation
+        tk.Button(self.root, text="Create Automation", command=self.create_automation, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+
+
+    def show_update_automation(self):
+        """Display the screen to update existing automation settings."""
+        self.clear_screen()
+
+        tk.Label(self.root, text="Update Existing Automation", font=("Arial", 16)).pack(pady=20)
+
+        # Entry for automation ID (for updating existing automation)
+        tk.Label(self.root, text="Automation ID (Existing):", font=("Arial", 12)).pack(pady=5)
+        self.automation_id_entry = tk.Entry(self.root, width=30)
+        self.automation_id_entry.pack(pady=5)
+
+        # Entry for new device ID
+        tk.Label(self.root, text="New Device ID:", font=("Arial", 12)).pack(pady=5)
+        self.new_device_id_entry = tk.Entry(self.root, width=30)
+        self.new_device_id_entry.pack(pady=5)
+
+        # Entry for new user ID
+        tk.Label(self.root, text="New User ID:", font=("Arial", 12)).pack(pady=5)
+        self.new_user_id_entry = tk.Entry(self.root, width=30)
+        self.new_user_id_entry.pack(pady=5)
+
+        # Entry for start time
+        tk.Label(self.root, text="Start Time (HH:MM:SS):", font=("Arial", 12)).pack(pady=5)
+        self.start_time_entry = tk.Entry(self.root, width=30)
+        self.start_time_entry.pack(pady=5)
+
+        # Entry for end time
+        tk.Label(self.root, text="End Time (HH:MM:SS):", font=("Arial", 12)).pack(pady=5)
+        self.end_time_entry = tk.Entry(self.root, width=30)
+        self.end_time_entry.pack(pady=5)
+
+        # Button to update automation
+        tk.Button(self.root, text="Update Automation", command=self.update_automation, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+
+    def create_automation(self):
+        """Create a new automation setting."""
+        new_device_id = self.new_device_id_entry.get()
+        new_user_id = self.new_user_id_entry.get()
+        start_time = self.start_time_entry.get()
+        end_time = self.end_time_entry.get()
+
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                try:
+                    # Generate a new automation ID in the format A0__
+                    new_automation_id = self.generate_new_automation_id()
+                    cursor.execute(
+                        "INSERT INTO Automation (automation_ID, device_ID, user_ID, start_time, end_time) VALUES (%s, %s, %s, %s, %s)",
+                        (new_automation_id, new_device_id, new_user_id, start_time, end_time)
+                    )
+                    connection.commit()
+                    messagebox.showinfo("Success", f"New automation created with ID: {new_automation_id}")
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+            connection.close()
+
+    def update_automation(self):
+        """Update existing automation settings."""
+        automation_id = self.automation_id_entry.get()
+        new_device_id = self.new_device_id_entry.get()
+        new_user_id = self.new_user_id_entry.get()
+        start_time = self.start_time_entry.get()
+        end_time = self.end_time_entry.get()
+
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                try:
+                    # Updating automation settings for the specified automation_ID
+                    cursor.execute(
+                        "UPDATE Automation SET device_ID = %s, user_ID = %s, start_time = %s, end_time = %s WHERE automation_ID = %s",
+                        (new_device_id, new_user_id, start_time, end_time, automation_id)
+                    )
+                    connection.commit()
+
+                    if cursor.rowcount > 0:  # Check if any rows were updated
+                        messagebox.showinfo("Success", "Automation settings updated successfully!")
+                    else:
+                        messagebox.showwarning("Warning", "No matching automation ID found.")
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+            connection.close()
+
+    def generate_new_automation_id(self):
+        """Generate a new automation ID in the format A0__."""
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT MAX(automation_ID) FROM Automation")
+                last_id = cursor.fetchone()[0]
+                if last_id is None:
+                    return "A000"  # First ID if none exists
+                else:
+                    # Increment logic here; you may need to adjust based on your ID format and increment logic.
+                    prefix = last_id[0:2]  # Get the prefix (A0)
+                    number = int(last_id[2:]) + 1  # Increment the numeric part
+                    new_id = f"{prefix}{number:02d}"  # Format as A0XX
+                    return new_id
+
+        
+        
+#--------------------------------------------------------------------
+#MAINTENANCE PART
+    def show_maintenance(self):
+        """Display maintenance logs and allow insertion."""
+        self.clear_screen()
+        
+        tk.Label(self.root, text="Maintenance Logs", font=("Arial", 16)).pack(pady=20)
+
+        # Fetch and display maintenance logs from the database
+        maintenance_logs = self.get_maintenance_logs()
+        tk.Label(self.root, text=maintenance_logs, font=("Arial", 12)).pack(pady=20)
+
+        tk.Label(self.root, text="Add Maintenance Log: device_id: issue_description").pack(pady=5)
+        self.maintenance_entry = tk.Entry(self.root)
+        self.maintenance_entry.pack(pady=5)
+
+        tk.Button(self.root, text="Add Log", command=self.add_maintenance_log, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+
+    def add_maintenance_log(self):
+        log_input = self.maintenance_entry.get().strip()
+        
+        try:
+            device_id, issue = log_input.split(': ', 1)
+            device_id = str(device_id)  # Ensure device_id is a string as per your table structure
+        except ValueError:
+            messagebox.showerror("Input Error", "Please enter in the format: device_ID: issue_description")
+            return
+
+        current_date = datetime.now().date()  # Get the current date (just date)
+        new_date = current_date + relativedelta(years=1)  # Get the date 1 year from now
+
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                try:
+                    # Fetch the maximum session ID from the Maintenance table
+                    cursor.execute("SELECT MAX(session_ID) FROM Maintenance")
+                    result = cursor.fetchone()
+                    max_session_id = result[0]
+
+                    if max_session_id:
+                        # Increment the last two digits
+                        last_num = int(max_session_id[3:]) + 1
+                        session_id = f"M0{last_num:02}"  # Ensure the format is M0__
+                    else:
+                        session_id = "M000"  # Starting point if no session exists
+
+                    # Insert the maintenance log into the database, including next_maintenance_date
+                    cursor.execute(
+                        "INSERT INTO Maintenance (session_ID, device_ID, date, issue_reported, next_maintenance_date) VALUES (%s, %s, %s, %s, %s)",
+                        (session_id, device_id, current_date, issue, new_date)
+                    )
+                    connection.commit()
+                    messagebox.showinfo("Success", "Maintenance log added successfully!")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to add maintenance log: {str(e)}")
+                finally:
+                    connection.close()
+
+            
+    def get_maintenance_logs(self):
+        """Fetch maintenance logs from the database."""
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT session_ID, device_ID, date, issue_reported FROM Maintenance")
+                logs = cursor.fetchall()
+            connection.close()
+            return "\n".join([f"Session ID: {log[0]}, Device ID: {log[1]}, Date: {log[2]}, Issue: {log[3]}" for log in logs])
+        return "No maintenance logs available."
+    
+
+
+
+#---------------------------------------------------------------------------
+#DEVICE STATUS
+    def show_device_stats(self):
+        """Display current device statistics and options to add or change device status."""
+        self.clear_screen()
+        
+        tk.Label(self.root, text="Device Statistics", font=("Arial", 16)).pack(pady=20)
+
+        # Fetch and display device statistics
+        device_stats = self.get_device_stats()
+        tk.Label(self.root, text=device_stats, font=("Arial", 12)).pack(pady=20)
+
+        # Buttons for adding and changing device stats
+        tk.Button(self.root, text="Add New Device", command=self.show_add_device, width=20).pack(pady=10)
+        tk.Button(self.root, text="Change Device Status", command=self.change_device_stats, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+
+    def get_device_stats(self):
+        """Fetch device statistics from the database."""
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT device_ID, status FROM Device")
+                stats = cursor.fetchall()
+            connection.close()
+            return "\n".join([f"Device ID: {d[0]}, Status: {d[1]}" for d in stats])
+        return "No device statistics available."
+    
+    def show_add_device(self):
+        """Display the screen to add a new device with additional details."""
+        self.clear_screen()
+
+        tk.Label(self.root, text="Add New Device", font=("Arial", 16)).pack(pady=20)
+
+        # Entry for device ID
+        tk.Label(self.root, text="Device ID:", font=("Arial", 12)).pack(pady=5)
+        self.device_id_entry = tk.Entry(self.root, width=30)
+        self.device_id_entry.pack(pady=5)
+
+        # Entry for device name
+        tk.Label(self.root, text="Device Name:", font=("Arial", 12)).pack(pady=5)
+        self.device_name_entry = tk.Entry(self.root, width=30)
+        self.device_name_entry.pack(pady=5)
+
+        # Entry for device model
+        tk.Label(self.root, text="Device Model:", font=("Arial", 12)).pack(pady=5)
+        self.device_model_entry = tk.Entry(self.root, width=30)
+        self.device_model_entry.pack(pady=5)
+
+        # Entry for device version
+        tk.Label(self.root, text="Device Version:", font=("Arial", 12)).pack(pady=5)
+        self.device_version_entry = tk.Entry(self.root, width=30)
+        self.device_version_entry.pack(pady=5)
+
+        # Entry for device status
+        tk.Label(self.root, text="Device Status:", font=("Arial", 12)).pack(pady=5)
+        self.device_status_entry = tk.Entry(self.root, width=30)
+        self.device_status_entry.pack(pady=5)
+
+        # Button to add new device
+        tk.Button(self.root, text="Add Device", command=self.add_device, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_device_stats, width=20).pack(pady=10)
+
+    def add_device(self):
+        """Add a new device to the database with model, version, and name details."""
+        device_id = self.device_id_entry.get()
+        device_name = self.device_name_entry.get()
+        device_model = self.device_model_entry.get()
+        device_version = self.device_version_entry.get()
+        device_status = self.device_status_entry.get()
+
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                try:
+                    # Insert new device into the Device table with additional details
+                    cursor.execute(
+                        "INSERT INTO Device (device_ID, name, model, version, status) VALUES (%s, %s, %s, %s, %s)",
+                        (device_id, device_name, device_model, device_version, device_status)
+                    )
+                    connection.commit()
+                    messagebox.showinfo("Success", f"New device added with ID: {device_id}")
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+            connection.close()
+
+
+    def change_device_stats(self):
+        """Change device statistics."""
+        self.clear_screen()
+
+        tk.Label(self.root, text="Change Device Statistics", font=("Arial", 16)).pack(pady=20)
+
+        tk.Label(self.root, text="Device ID:").pack(pady=5)
+        self.device_id_entry = tk.Entry(self.root)
+        self.device_id_entry.pack(pady=5)
+
+        tk.Label(self.root, text="New Status:").pack(pady=5)
+        self.new_status_entry = tk.Entry(self.root)
+        self.new_status_entry.pack(pady=5)
+
+        tk.Button(self.root, text="Update Status", command=self.update_device_status, width=20).pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_device_stats, width=20).pack(pady=10)
+
+    def update_device_status(self):
+        """Update the status of a device."""
+        device_id = self.device_id_entry.get()
+        new_status = self.new_status_entry.get()
+
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                try:
+                    # Update device status for the specified device_ID
+                    cursor.execute(
+                        "UPDATE Device SET status = %s WHERE device_ID = %s",
+                        (new_status, device_id)
+                    )
+                    connection.commit()
+                    if cursor.rowcount > 0:
+                        messagebox.showinfo("Success", "Device status updated successfully!")
+                    else:
+                        messagebox.showwarning("Warning", "No matching device ID found.")
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+            connection.close()
+
+    
+
+#------------------------------------------------------------------
+#LOGS
+    def display_logs(self):
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute("SELECT * FROM Logs")
+                    logs = cursor.fetchall()
+
+                    # Create a new window to display logs
+                    log_window = tk.Tk()
+                    log_window.title("Logs")
+
+                    # Create a Text widget to display the log information
+                    text_display = tk.Text(log_window, wrap=tk.NONE)
+                    text_display.insert(tk.END, "Log ID | Device ID | Date | Time | Duration (mins)\n")
+                    text_display.insert(tk.END, "-" * 50 + "\n")
+
+                    for log in logs:
+                        log_id, device_id, date, time, duration = log
+                        log_line = f"{log_id} | {device_id} | {date} | {time} | {duration} mins\n"
+                        text_display.insert(tk.END, log_line)
+
+                    # Disable editing in the Text widget
+                    text_display.config(state=tk.DISABLED)
+                    text_display.pack(fill=tk.BOTH, expand=True)
+
+                    log_window.mainloop()
+
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to retrieve logs: {str(e)}")
+                finally:
+                    connection.close()
+
+
+
+
+    def clear_screen(self):
+        """Clear the main window."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SmartHomeApp(root)
+    root.mainloop()
