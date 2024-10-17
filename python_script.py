@@ -51,8 +51,12 @@ class SmartHomeApp:
         self.user_password = tk.Entry(self.root, show='*')
         self.user_password.pack(pady=5)
 
+        # Bind the Enter key to the authenticate_user method
+        self.user_password.bind('<Return>', lambda event: self.authenticate_user())
+
         tk.Button(self.root, text="Log In", command=self.authenticate_user, width=20).pack(pady=10)
         tk.Button(self.root, text="Back to Main Menu", command=self.main_menu, width=20).pack(pady=10)
+
 
     def sign_up(self):
         """User sign up screen."""
@@ -346,7 +350,9 @@ class SmartHomeApp:
         maintenance_logs = self.get_maintenance_logs()
         tk.Label(self.root, text=maintenance_logs, font=("Arial", 12)).pack(pady=20)
 
-        tk.Label(self.root, text="Add Maintenance Log: device_id: issue_description").pack(pady=5)
+        tk.Label(self.root, text="Add New Maintenance Log").pack(pady=5)
+        tk.Label(self.root, text="FORMAT > device_id: issue_description").pack(pady=5)
+        
         self.maintenance_entry = tk.Entry(self.root)
         self.maintenance_entry.pack(pady=5)
 
@@ -355,7 +361,7 @@ class SmartHomeApp:
 
     def add_maintenance_log(self):
         log_input = self.maintenance_entry.get().strip()
-        
+
         try:
             device_id, issue = log_input.split(': ', 1)
             device_id = str(device_id)  # Ensure device_id is a string as per your table structure
