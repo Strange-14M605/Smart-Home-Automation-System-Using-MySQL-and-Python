@@ -53,8 +53,12 @@ class SmartHomeApp:
         self.user_password = tk.Entry(self.root, show='*')
         self.user_password.pack(pady=5)
 
+        # Bind the Enter key to the authenticate_user method
+        self.user_password.bind('<Return>', lambda event: self.authenticate_user())
+
         tk.Button(self.root, text="Log In", command=self.authenticate_user, width=20).pack(pady=10)
         tk.Button(self.root, text="Back to Main Menu", command=self.main_menu, width=20).pack(pady=10)
+
 
     def sign_up(self):
         """User sign up screen."""
@@ -366,8 +370,11 @@ class SmartHomeApp:
         # Fetch and display maintenance logs from the database
         self.populate_maintenance_logs()
 
-        # Input section for adding a new maintenance log
-        tk.Label(self.root, text="Add Maintenance Log:", font=("Arial", 12)).pack(pady=10)
+        tk.Label(self.root, text="Add New Maintenance Log").pack(pady=5)
+        tk.Label(self.root, text="FORMAT > device_id: issue_description").pack(pady=5)
+        
+        self.maintenance_entry = tk.Entry(self.root)
+        self.maintenance_entry.pack(pady=5)
 
         tk.Label(self.root, text="Enter Device ID:", font=("Arial", 12)).pack(pady=5)
         self.device_id_entry = tk.Entry(self.root, font=("Arial", 12), width=40)
@@ -381,11 +388,14 @@ class SmartHomeApp:
         tk.Button(self.root, text="Back", command=self.show_common_options, width=20, bg='gray', fg='white').pack(pady=10)
 
     def add_maintenance_log(self):
-        device_id = self.device_id_entry.get().strip()
-        issue = self.issue_entry.get().strip()
 
-        if not device_id or not issue:
-            messagebox.showerror("Input Error", "Both Device ID and Issue Description must be provided.")
+        log_input = self.maintenance_entry.get().strip()
+
+        try:
+            device_id, issue = log_input.split(': ', 1)
+            device_id = str(device_id)  # Ensure device_id is a string as per your table structure
+        except ValueError:
+            messagebox.showerror("Input Error", "Please enter in the format: device_ID: issue_description")
             return
 
         current_date = datetime.now().date()  # Get the current date
