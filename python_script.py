@@ -3,7 +3,9 @@ from tkinter import messagebox
 import pymysql
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from tkinter import ttk
+from tkinter import messagebox, scrolledtext, ttk
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 class SmartHomeApp:
     def __init__(self, root):
@@ -339,31 +341,54 @@ class SmartHomeApp:
     def show_maintenance(self):
         """Display maintenance logs and allow insertion."""
         self.clear_screen()
-        
+
         tk.Label(self.root, text="Maintenance Logs", font=("Arial", 16)).pack(pady=20)
 
+        # Create a frame for the table
+        table_frame = tk.Frame(self.root)
+        table_frame.pack(pady=10)
+
+        # Treeview for displaying maintenance logs
+        self.tree = ttk.Treeview(table_frame, columns=("session_ID", "device_ID", "date", "issue_reported"), show='headings', height=10)
+        self.tree.pack(side=tk.LEFT)
+
+        # Define column headings
+        self.tree.heading("session_ID", text="Session ID")
+        self.tree.heading("device_ID", text="Device ID")
+        self.tree.heading("date", text="Date")
+        self.tree.heading("issue_reported", text="Issue Reported")
+
+        # Add a vertical scrollbar to the Treeview
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.configure(yscroll=scrollbar.set)
+
         # Fetch and display maintenance logs from the database
-        maintenance_logs = self.get_maintenance_logs()
-        tk.Label(self.root, text=maintenance_logs, font=("Arial", 12)).pack(pady=20)
+        self.populate_maintenance_logs()
 
-        tk.Label(self.root, text="Add Maintenance Log: device_id: issue_description").pack(pady=5)
-        self.maintenance_entry = tk.Entry(self.root)
-        self.maintenance_entry.pack(pady=5)
+        # Input section for adding a new maintenance log
+        tk.Label(self.root, text="Add Maintenance Log:", font=("Arial", 12)).pack(pady=10)
 
-        tk.Button(self.root, text="Add Log", command=self.add_maintenance_log, width=20).pack(pady=10)
-        tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+        tk.Label(self.root, text="Enter Device ID:", font=("Arial", 12)).pack(pady=5)
+        self.device_id_entry = tk.Entry(self.root, font=("Arial", 12), width=40)
+        self.device_id_entry.pack(pady=5)
+
+        tk.Label(self.root, text="Enter Issue Description:", font=("Arial", 12)).pack(pady=5)
+        self.issue_entry = tk.Entry(self.root, font=("Arial", 12), width=40)
+        self.issue_entry.pack(pady=5)
+
+        tk.Button(self.root, text="Add Log", command=self.add_maintenance_log, width=20, bg='blue', fg='white').pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_common_options, width=20, bg='gray', fg='white').pack(pady=10)
 
     def add_maintenance_log(self):
-        log_input = self.maintenance_entry.get().strip()
-        
-        try:
-            device_id, issue = log_input.split(': ', 1)
-            device_id = str(device_id)  # Ensure device_id is a string as per your table structure
-        except ValueError:
-            messagebox.showerror("Input Error", "Please enter in the format: device_ID: issue_description")
+        device_id = self.device_id_entry.get().strip()
+        issue = self.issue_entry.get().strip()
+
+        if not device_id or not issue:
+            messagebox.showerror("Input Error", "Both Device ID and Issue Description must be provided.")
             return
 
-        current_date = datetime.now().date()  # Get the current date (just date)
+        current_date = datetime.now().date()  # Get the current date
         new_date = current_date + relativedelta(years=1)  # Get the date 1 year from now
 
         connection = self.create_connection()
@@ -389,41 +414,65 @@ class SmartHomeApp:
                     )
                     connection.commit()
                     messagebox.showinfo("Success", "Maintenance log added successfully!")
+
+                    # Clear input fields
+                    self.device_id_entry.delete(0, tk.END)
+                    self.issue_entry.delete(0, tk.END)
+
+                    # Refresh the log display
+                    self.populate_maintenance_logs()
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to add maintenance log: {str(e)}")
                 finally:
                     connection.close()
 
-            
-    def get_maintenance_logs(self):
-        """Fetch maintenance logs from the database."""
+    def populate_maintenance_logs(self):
+        """Fetch and display maintenance logs in the Treeview."""
+        # Clear the current logs in the tree
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+
         connection = self.create_connection()
         if connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT session_ID, device_ID, date, issue_reported FROM Maintenance")
                 logs = cursor.fetchall()
             connection.close()
-            return "\n".join([f"Session ID: {log[0]}, Device ID: {log[1]}, Date: {log[2]}, Issue: {log[3]}" for log in logs])
-        return "No maintenance logs available."
-    
-
-
+            
+            # Insert fetched logs into the Treeview
+            for log in logs:
+                self.tree.insert("", tk.END, values=(log[0], log[1], log[2], log[3]))
+        else:
+            messagebox.showinfo("No Logs", "No maintenance logs available.")
 
 #---------------------------------------------------------------------------
 #DEVICE STATUS
     def show_device_stats(self):
         """Display current device statistics and options to add or change device status."""
         self.clear_screen()
-        
+
         tk.Label(self.root, text="Device Statistics", font=("Arial", 16)).pack(pady=20)
 
-        # Fetch and display device statistics
+        # Fetch and display device statistics with toggle buttons
         device_stats = self.get_device_stats()
-        tk.Label(self.root, text=device_stats, font=("Arial", 12)).pack(pady=20)
+        
+        # Create headers
+        header = tk.Label(self.root, text="Device ID | Name                  | Status", font=("Arial", 12, 'bold'))
+        header.pack(pady=5)
+        
+        for device_id, name, status in device_stats:
+            # Create a label for each device
+            device_info = f"{device_id} | {name:<20} | {status}"
+            tk.Label(self.root, text=device_info, font=("Arial", 12)).pack(pady=5)
+
+            # Create a toggle button for each device
+            toggle_text = "Deactivate" if status == "active" else "Activate"
+            toggle_button = tk.Button(self.root, text=toggle_text, 
+                                       command=lambda d_id=device_id, stat=status: self.toggle_device_status(d_id, stat), width=20)
+            toggle_button.pack(pady=5)
 
         # Buttons for adding and changing device stats
         tk.Button(self.root, text="Add New Device", command=self.show_add_device, width=20).pack(pady=10)
-        tk.Button(self.root, text="Change Device Status", command=self.change_device_stats, width=20).pack(pady=10)
         tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
 
     def get_device_stats(self):
@@ -431,11 +480,26 @@ class SmartHomeApp:
         connection = self.create_connection()
         if connection:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT device_ID, status FROM Device")
+                # Updated query to include device name
+                cursor.execute("SELECT device_ID, name, status FROM Device")
                 stats = cursor.fetchall()
             connection.close()
-            return "\n".join([f"Device ID: {d[0]}, Status: {d[1]}" for d in stats])
-        return "No device statistics available."
+            return stats  # Return the list of tuples (device_ID, name, status)
+        return []
+
+    def toggle_device_status(self, device_id, current_status):
+        """Toggle the device status and update the database."""
+        new_status = "active" if current_status == "inactive" else "inactive"
+        
+        connection = self.create_connection()
+        if connection:
+            with connection.cursor() as cursor:
+                cursor.execute("UPDATE Device SET status = %s WHERE device_ID = %s", (new_status, device_id))
+                connection.commit()
+                messagebox.showinfo("Success", f"Device {device_id} is now {new_status}.")
+            connection.close()
+
+        self.show_device_stats()
     
     def show_add_device(self):
         """Display the screen to add a new device with additional details."""
