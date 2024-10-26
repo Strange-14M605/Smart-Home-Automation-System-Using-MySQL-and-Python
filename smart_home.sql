@@ -103,31 +103,21 @@ INSERT INTO Maintenance (session_ID, device_ID, date, issue_reported, next_maint
 
 DELIMITER //
 
-CREATE TRIGGER after_device_deactivate
-AFTER UPDATE ON device
+CREATE TRIGGER before_device_activate
+BEFORE UPDATE ON device
 FOR EACH ROW
 BEGIN
-    -- Declare a variable to store the last log duration in seconds
-    DECLARE last_log_duration INT;
-
-    IF NEW.status IN ('inactive', 'off') AND OLD.status IN ('active', 'on') THEN
-        -- Calculate the new duration based on the latest log entry
-        SET last_log_duration = TIMESTAMPDIFF(SECOND,
-            (SELECT CONCAT(date, ' ', time) 
-             FROM logs 
-             WHERE device_ID = OLD.device_ID 
-             ORDER BY log_ID DESC LIMIT 1),
-            NOW()
-        );
-
-        -- Update the latest log entry for the device with the new duration
-        UPDATE logs
-        SET duration = last_log_duration
-        WHERE device_ID = OLD.device_ID
-        ORDER BY log_ID DESC LIMIT 1;
+    IF NEW.status IN ('active', 'on') AND OLD.status NOT IN ('active', 'on') THEN
+        -- Insert a log entry with current timestamp for the duration
+        INSERT INTO logs (device_ID, date, time, duration)
+        VALUES (NEW.device_ID, CURDATE(), CURTIME(), 0);
     END IF;
 END;
+
 //
+
+DELIMITER ;
+
 
 DELIMITER ;
 
