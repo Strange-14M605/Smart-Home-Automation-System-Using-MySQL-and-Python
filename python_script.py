@@ -8,7 +8,7 @@ from tkinter import ttk
 class SmartHomeApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Smart Home Automation System")
+        self.root.title("Smart Home Automatimport ion System")
 
         # Main menu
         self.main_menu()
@@ -18,8 +18,8 @@ class SmartHomeApp:
         try:
             connection = pymysql.connect(
                 host='localhost',  # Your MySQL server host
-                user='newuser',  # Your MySQL username
-                password='your_password',  # Your MySQL password
+                user='jova2024',  # Your MySQL username
+                password='jova2020',  # Your MySQL password
                 database='smart_home'  # Your MySQL database name
             )
             return connection
@@ -554,12 +554,20 @@ class SmartHomeApp:
 
                     # Create a Text widget to display the log information
                     text_display = tk.Text(log_window, wrap=tk.NONE)
-                    text_display.insert(tk.END, "Log ID | Device ID | Date | Time | Duration (mins)\n")
-                    text_display.insert(tk.END, "-" * 50 + "\n")
+                    text_display.insert(tk.END, "Log ID | Device ID | Date | Time | Duration (days:hrs:mins:secs)\n")
+                    text_display.insert(tk.END, "-" * 70 + "\n")
+
+                    def convert_minutes_to_dhms(minutes):
+                        days = minutes // 1440
+                        hours = (minutes % 1440) // 60
+                        mins = minutes % 60
+                        seconds = 0  # Assuming no seconds if only minutes are stored
+                        return f"{days}:{hours:02}:{mins:02}:{seconds:02}"
 
                     for log in logs:
                         log_id, device_id, date, time, duration = log
-                        log_line = f"{log_id} | {device_id} | {date} | {time} | {duration} mins\n"
+                        duration_dhms = convert_minutes_to_dhms(duration)
+                        log_line = f"{log_id} | {device_id} | {date} | {time} | {duration_dhms}\n"
                         text_display.insert(tk.END, log_line)
 
                     # Disable editing in the Text widget

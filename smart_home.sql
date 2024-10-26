@@ -25,13 +25,14 @@ CREATE TABLE Device (
 
 -- Create Logs table
 CREATE TABLE Logs (
-    log_ID VARCHAR(10) PRIMARY KEY,
+    log_ID INT AUTO_INCREMENT PRIMARY KEY,
     device_ID VARCHAR(10),
     date DATE,
     time TIME,
     duration INT,
     FOREIGN KEY (device_ID) REFERENCES Device(device_ID)
 );
+
 
 -- Create Automation table
 CREATE TABLE Automation (
@@ -74,12 +75,12 @@ INSERT INTO Device (device_ID, status, name, model, version) VALUES
 ('D005', 'active', 'Smart Speaker', 'Echo Plus', '4.0');
 
 -- 3. Insert Logs data
-INSERT INTO Logs (log_ID, device_ID, date, time, duration) VALUES
-('L001', 'D001', '2024-10-01', '08:00:00', 120),
-('L002', 'D002', '2024-10-01', '09:30:00', 60),
-('L003', 'D003', '2024-10-01', '10:15:00', 45),
-('L004', 'D001', '2024-10-02', '14:20:00', 90),
-('L005', 'D005', '2024-10-02', '16:45:00', 30);
+INSERT INTO Logs (device_ID, date, time, duration) VALUES
+('D001', '2024-10-01', '08:00:00', 120),
+('D002', '2024-10-01', '09:30:00', 60),
+('D003', '2024-10-01', '10:15:00', 45),
+('D001', '2024-10-02', '14:20:00', 90),
+('D005', '2024-10-02', '16:45:00', 30);
 
 -- 4. Insert Automation data
 INSERT INTO Automation (automation_ID, device_ID, user_ID, start_time, end_time) VALUES
@@ -97,4 +98,69 @@ INSERT INTO Maintenance (session_ID, device_ID, date, issue_reported, next_maint
 ('M004', 'D003', '2024-09-30', 'Firmware update', '2024-12-30'),
 ('M005', 'D005', '2024-10-05', 'Speaker calibration', '2025-01-05');
 
+
+-- TRIGGERS
+
+DELIMITER //
+
+CREATE TRIGGER after_device_deactivate
+AFTER UPDATE ON device
+FOR EACH ROW
+BEGIN
+    -- Declare a variable to store the last log duration in seconds
+    DECLARE last_log_duration INT;
+
+    IF NEW.status IN ('inactive', 'off') AND OLD.status IN ('active', 'on') THEN
+        -- Calculate the new duration based on the latest log entry
+        SET last_log_duration = TIMESTAMPDIFF(SECOND,
+            (SELECT CONCAT(date, ' ', time) 
+             FROM logs 
+             WHERE device_ID = OLD.device_ID 
+             ORDER BY log_ID DESC LIMIT 1),
+            NOW()
+        );
+
+        -- Update the latest log entry for the device with the new duration
+        UPDATE logs
+        SET duration = last_log_duration
+        WHERE device_ID = OLD.device_ID
+        ORDER BY log_ID DESC LIMIT 1;
+    END IF;
+END;
+//
+
+DELIMITER ;
+
+
+
+DELIMITER //
+
+CREATE TRIGGER after_device_deactivate
+AFTER UPDATE ON device
+FOR EACH ROW
+BEGIN
+    -- Declare a variable to store the total duration in minutes
+    DECLARE total_minutes INT DEFAULT 0;
+    DECLARE last_log_time DATETIME;
+
+    IF NEW.status IN ('inactive', 'off') AND OLD.status IN ('active', 'on') THEN
+        -- Get the latest log entry time
+        SELECT CONCAT(date, ' ', time) INTO last_log_time 
+        FROM logs 
+        WHERE device_ID = OLD.device_ID 
+        ORDER BY log_ID DESC LIMIT 1;
+
+        -- Calculate the total duration in minutes using integer difference
+        SET total_minutes = TIMESTAMPDIFF(MINUTE, last_log_time, NOW());
+
+        -- Update the duration as total minutes
+        UPDATE logs
+        SET duration = total_minutes
+        WHERE device_ID = OLD.device_ID
+        ORDER BY log_ID DESC LIMIT 1;
+    END IF;
+END;
+//
+
+DELIMITER ;
 
