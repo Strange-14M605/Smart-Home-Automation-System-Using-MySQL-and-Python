@@ -7,10 +7,13 @@ from tkinter import messagebox, scrolledtext, ttk
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+import sys
+print(sys.executable)
+
 class SmartHomeApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Smart Home Automatimport ion System")
+        self.root.title("Smart Home Automation System")
 
         # Main menu
         self.main_menu()
@@ -20,8 +23,8 @@ class SmartHomeApp:
         try:
             connection = pymysql.connect(
                 host='localhost',  # Your MySQL server host
-                user='jova2024',  # Your MySQL username
-                password='jova2020',  # Your MySQL password
+                user='newuser',  # Your MySQL username
+                password='your_password',  # Your MySQL password
                 database='smart_home'  # Your MySQL database name
             )
             return connection
@@ -53,12 +56,8 @@ class SmartHomeApp:
         self.user_password = tk.Entry(self.root, show='*')
         self.user_password.pack(pady=5)
 
-        # Bind the Enter key to the authenticate_user method
-        self.user_password.bind('<Return>', lambda event: self.authenticate_user())
-
         tk.Button(self.root, text="Log In", command=self.authenticate_user, width=20).pack(pady=10)
         tk.Button(self.root, text="Back to Main Menu", command=self.main_menu, width=20).pack(pady=10)
-
 
     def sign_up(self):
         """User sign up screen."""
@@ -101,16 +100,16 @@ class SmartHomeApp:
         connection = self.create_connection()
         if connection:
             with connection.cursor() as cursor:
-                # Check user credentials and role
-                cursor.execute("SELECT role FROM User WHERE user_ID = %s AND password = %s", (user_id, password))
+                # Call the SQL function to authenticate user
+                cursor.execute("SELECT authenticate_user(%s, %s)", (user_id, password))
                 result = cursor.fetchone()
                 
-                if result:
+                if result and result[0]:  # Check if a role is returned
                     self.user_role = result[0]  # Store the user role for later use
                     self.show_common_options()
                 else:
                     messagebox.showerror("Login Error", "Invalid User ID or Password.")
-            connection.close()
+
 
     def register_user(self):
         """Register a new user in the database."""
@@ -149,7 +148,7 @@ class SmartHomeApp:
         tk.Button(self.root, text="Show Device Stats", command=self.show_device_stats, width=20).pack(pady=10)
 
         # Show user or admin specific options
-        if self.user_role == "admin":
+        if self.user_role == "Admin":
             self.show_admin_options()
         else:
             self.show_user_options()
@@ -285,15 +284,29 @@ class SmartHomeApp:
                 try:
                     # Generate a new automation ID in the format A0__
                     new_automation_id = self.generate_new_automation_id()
-                    cursor.execute(
-                        "INSERT INTO Automation (automation_ID, device_ID, user_ID, start_time, end_time) VALUES (%s, %s, %s, %s, %s)",
-                        (new_automation_id, new_device_id, new_user_id, start_time, end_time)
-                    )
-                    connection.commit()
-                    messagebox.showinfo("Success", f"New automation created with ID: {new_automation_id}")
+
+                    # Insert into Automation only if device_ID and user_ID exist
+                    cursor.execute("""
+                        INSERT INTO Automation (automation_ID, device_ID, user_ID, start_time, end_time)
+                        SELECT %s, %s, %s, %s, %s
+                        WHERE EXISTS (
+                            SELECT 1 FROM Device WHERE device_ID = %s
+                        ) AND EXISTS (
+                            SELECT 1 FROM User WHERE user_ID = %s
+                        )
+                    """, (new_automation_id, new_device_id, new_user_id, start_time, end_time, new_device_id, new_user_id))
+
+                    if cursor.rowcount == 0:
+                        messagebox.showerror("Error", "Either the Device ID or User ID does not exist.")
+                    else:
+                        connection.commit()
+                        messagebox.showinfo("Success", f"New automation created with ID: {new_automation_id}")
+                    
                 except Exception as e:
                     messagebox.showerror("Error", str(e))
-            connection.close()
+                finally:
+                    connection.close()
+
 
     def update_automation(self):
         """Update existing automation settings."""
@@ -353,7 +366,7 @@ class SmartHomeApp:
         table_frame.pack(pady=10)
 
         # Treeview for displaying maintenance logs
-        self.tree = ttk.Treeview(table_frame, columns=("session_ID", "device_ID", "date", "issue_reported"), show='headings', height=10)
+        self.tree = ttk.Treeview(table_frame, columns=("session_ID", "device_ID", "date", "issue_reported", "next_maintenance_date"), show='headings', height=10)
         self.tree.pack(side=tk.LEFT)
 
         # Define column headings
@@ -361,6 +374,7 @@ class SmartHomeApp:
         self.tree.heading("device_ID", text="Device ID")
         self.tree.heading("date", text="Date")
         self.tree.heading("issue_reported", text="Issue Reported")
+        self.tree.heading("next_maintenance_date", text="Next Maintenance Date")
 
         # Add a vertical scrollbar to the Treeview
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
@@ -370,11 +384,8 @@ class SmartHomeApp:
         # Fetch and display maintenance logs from the database
         self.populate_maintenance_logs()
 
-        tk.Label(self.root, text="Add New Maintenance Log").pack(pady=5)
-        tk.Label(self.root, text="FORMAT > device_id: issue_description").pack(pady=5)
-        
-        self.maintenance_entry = tk.Entry(self.root)
-        self.maintenance_entry.pack(pady=5)
+        # Input section for adding a new maintenance log
+        tk.Label(self.root, text="Add Maintenance Log:", font=("Arial", 12)).pack(pady=10)
 
         tk.Label(self.root, text="Enter Device ID:", font=("Arial", 12)).pack(pady=5)
         self.device_id_entry = tk.Entry(self.root, font=("Arial", 12), width=40)
@@ -384,18 +395,15 @@ class SmartHomeApp:
         self.issue_entry = tk.Entry(self.root, font=("Arial", 12), width=40)
         self.issue_entry.pack(pady=5)
 
-        tk.Button(self.root, text="Add Log", command=self.add_maintenance_log, width=20, bg='blue', fg='white').pack(pady=10)
-        tk.Button(self.root, text="Back", command=self.show_common_options, width=20, bg='gray', fg='white').pack(pady=10)
+        tk.Button(self.root, text="Add Log", command=self.add_maintenance_log, width=20, bg='blue', fg='black').pack(pady=10)
+        tk.Button(self.root, text="Back", command=self.show_common_options, width=20, bg='gray', fg='black').pack(pady=10)
 
     def add_maintenance_log(self):
+        device_id = self.device_id_entry.get().strip()
+        issue = self.issue_entry.get().strip()
 
-        log_input = self.maintenance_entry.get().strip()
-
-        try:
-            device_id, issue = log_input.split(': ', 1)
-            device_id = str(device_id)  # Ensure device_id is a string as per your table structure
-        except ValueError:
-            messagebox.showerror("Input Error", "Please enter in the format: device_ID: issue_description")
+        if not device_id or not issue:
+            messagebox.showerror("Input Error", "Both Device ID and Issue Description must be provided.")
             return
 
         current_date = datetime.now().date()  # Get the current date
@@ -412,12 +420,12 @@ class SmartHomeApp:
 
                     if max_session_id:
                         # Increment the last two digits
-                        last_num = int(max_session_id[3:]) + 1
-                        session_id = f"M0{last_num:02}"  # Ensure the format is M0__
+                        last_num = int(max_session_id[1:]) + 1  # Skip 'M' prefix
+                        session_id = f"M{last_num:03}"  # Ensure the format is M___
                     else:
                         session_id = "M000"  # Starting point if no session exists
 
-                    # Insert the maintenance log into the database, including next_maintenance_date
+                    # Insert the maintenance log into the database
                     cursor.execute(
                         "INSERT INTO Maintenance (session_ID, device_ID, date, issue_reported, next_maintenance_date) VALUES (%s, %s, %s, %s, %s)",
                         (session_id, device_id, current_date, issue, new_date)
@@ -445,18 +453,23 @@ class SmartHomeApp:
         connection = self.create_connection()
         if connection:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT session_ID, device_ID, date, issue_reported FROM Maintenance")
+                cursor.execute("SELECT session_ID, device_ID, date, issue_reported, next_maintenance_date FROM Maintenance")
                 logs = cursor.fetchall()
             connection.close()
-            
+
             # Insert fetched logs into the Treeview
             for log in logs:
-                self.tree.insert("", tk.END, values=(log[0], log[1], log[2], log[3]))
+                self.tree.insert("", tk.END, values=(log[0], log[1], log[2], log[3], log[4]))
         else:
             messagebox.showinfo("No Logs", "No maintenance logs available.")
 
+
+
+
+
+
 #---------------------------------------------------------------------------
-#DEVICE STATUS
+#DEVICE 
     def show_device_stats(self):
         """Display current device statistics and options to add or change device status."""
         self.clear_screen()
@@ -465,12 +478,18 @@ class SmartHomeApp:
 
         # Fetch and display device statistics with toggle buttons
         device_stats = self.get_device_stats()
-        
+        print("Device Stats:", device_stats)  # Debug line
+
         # Create headers
-        header = tk.Label(self.root, text="Device ID | Name                  | Status", font=("Arial", 12, 'bold'))
+        header = tk.Label(self.root, text="Device ID | Name | Status", font=("Arial", 12, 'bold'))
         header.pack(pady=5)
         
         for device_id, name, status in device_stats:
+            # Ensure no None values
+            device_id = device_id if device_id is not None else "Unknown ID"
+            name = name if name is not None else "Unknown Name"
+            status = status if status is not None else "Unknown Status"
+
             # Create a label for each device
             device_info = f"{device_id} | {name:<20} | {status}"
             tk.Label(self.root, text=device_info, font=("Arial", 12)).pack(pady=5)
@@ -478,12 +497,22 @@ class SmartHomeApp:
             # Create a toggle button for each device
             toggle_text = "Deactivate" if status == "active" else "Activate"
             toggle_button = tk.Button(self.root, text=toggle_text, 
-                                       command=lambda d_id=device_id, stat=status: self.toggle_device_status(d_id, stat), width=20)
+                                    command=lambda d_id=device_id, stat=status: self.toggle_device_status(d_id, stat), width=20)
             toggle_button.pack(pady=5)
 
+        # Adding a frame for buttons to prevent layout issues
+        button_frame = tk.Frame(self.root)
+        button_frame.pack(pady=10)
+
         # Buttons for adding and changing device stats
-        tk.Button(self.root, text="Add New Device", command=self.show_add_device, width=20).pack(pady=10)
-        tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+        add_device_button = tk.Button(button_frame, text="Add New Device", command=self.show_add_device, width=20)
+        add_device_button.pack(side=tk.LEFT, padx=5)
+
+        back_button = tk.Button(button_frame, text="Back", command=self.show_common_options, width=20)
+        back_button.pack(side=tk.LEFT, padx=5)
+
+
+
 
     def get_device_stats(self):
         """Fetch device statistics from the database."""
@@ -610,7 +639,7 @@ class SmartHomeApp:
                     messagebox.showerror("Error", str(e))
             connection.close()
 
-    
+ 
 
 #------------------------------------------------------------------
 #LOGS
@@ -619,7 +648,21 @@ class SmartHomeApp:
         if connection:
             with connection.cursor() as cursor:
                 try:
-                    cursor.execute("SELECT * FROM Logs")
+                    # Updated SQL query with join and aggregation
+                    cursor.execute("""
+                        SELECT 
+                            l.log_id, 
+                            d.device_id, 
+                            l.date, 
+                            l.time, 
+                            SUM(l.duration) AS total_duration
+                        FROM 
+                            Logs l
+                        JOIN 
+                            Device d ON l.device_id = d.device_ID
+                        GROUP BY 
+                            l.log_id, d.device_id, l.date, l.time
+                    """)
                     logs = cursor.fetchall()
 
                     # Create a new window to display logs
@@ -639,8 +682,8 @@ class SmartHomeApp:
                         return f"{days}:{hours:02}:{mins:02}:{seconds:02}"
 
                     for log in logs:
-                        log_id, device_id, date, time, duration = log
-                        duration_dhms = convert_minutes_to_dhms(duration)
+                        log_id, device_id, date, time, total_duration = log
+                        duration_dhms = convert_minutes_to_dhms(total_duration)
                         log_line = f"{log_id} | {device_id} | {date} | {time} | {duration_dhms}\n"
                         text_display.insert(tk.END, log_line)
 
@@ -657,11 +700,17 @@ class SmartHomeApp:
 
 
 
+#CREATE AUTOMATION- NESTED QUERY
+#DISPLAY LOGS- JOIN AND AGGREGATE
 
+
+#---------------------------------------------------------------------------------------------------------
     def clear_screen(self):
         """Clear the main window."""
         for widget in self.root.winfo_children():
             widget.destroy()
+
+
 
 
 if __name__ == "__main__":
