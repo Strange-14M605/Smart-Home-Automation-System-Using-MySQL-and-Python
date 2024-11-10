@@ -170,20 +170,33 @@ class SmartHomeApp:
 #--------------------------------------------------------------------
 #AUTOMATION PART
 
+    import tkinter as tk
+    from tkinter import messagebox
+
     def show_automation(self):
         """Display current automation settings and options to create or update."""
         self.clear_screen()
-        
+
         tk.Label(self.root, text="Current Automation Settings", font=("Arial", 16)).pack(pady=20)
 
         # Fetch and display automation settings from the database
         automation_data = self.get_automation_data()
-        tk.Label(self.root, text=automation_data, font=("Arial", 12)).pack(pady=20)
+        if automation_data:
+            for automation in automation_data:
+                # Display each automation setting and add a 'Delete' button next to it
+                automation_label = tk.Label(self.root, text=automation['display'], font=("Arial", 12))
+                automation_label.pack(pady=5)
+
+                delete_button = tk.Button(self.root, text="Delete", command=lambda id=automation['id']: self.delete_automation(id), width=20)
+                delete_button.pack(pady=5)
+        else:
+            tk.Label(self.root, text="No automation settings available.", font=("Arial", 12)).pack(pady=20)
 
         # Buttons for creating and updating automation
         tk.Button(self.root, text="Create New Automation", command=self.show_create_automation, width=20).pack(pady=10)
         tk.Button(self.root, text="Update Existing Automation", command=self.show_update_automation, width=20).pack(pady=10)
         tk.Button(self.root, text="Back", command=self.show_common_options, width=20).pack(pady=10)
+
 
     def get_automation_data(self):
         """Fetch automation data from the database."""
@@ -196,15 +209,40 @@ class SmartHomeApp:
             
             # Formatting the output for display
             if data:
-                return "\n".join([
-                    f"Automation ID: {d[0]}, Device ID: {d[1]}, User ID: {d[2]}, Start Time: {d[3]}, End Time: {d[4]}"
-                    for d in data
-                ])
+                automation_list = []
+                for d in data:
+                    automation_list.append({
+                        'id': d[0],
+                        'display': f"Automation ID: {d[0]}, Device ID: {d[1]}, User ID: {d[2]}, Start Time: {d[3]}, End Time: {d[4]}"
+                    })
+                return automation_list
             else:
-                return "No automation settings available."
+                return []
         
         return "Database connection error."
 
+    def delete_automation(self, automation_id):
+        """Delete the automation setting from the database."""
+        connection = self.create_connection()
+        if connection:
+            try:
+                with connection.cursor() as cursor:
+                    # Delete the automation setting by ID
+                    cursor.execute("DELETE FROM Automation WHERE automation_ID = %s", (automation_id,))
+                    connection.commit()
+
+                # Show success message and refresh the screen
+                messagebox.showinfo("Success", f"Automation {automation_id} deleted successfully.")
+                self.show_automation()  # Refresh the display
+            except Exception as e:
+                connection.rollback()
+                messagebox.showerror("Error", f"Failed to delete automation: {str(e)}")
+            finally:
+                connection.close()
+        else:
+            messagebox.showerror("Error", "Database connection error.")
+
+    
     def show_create_automation(self):
         """Display the screen to create new automation settings."""
         self.clear_screen()

@@ -2,10 +2,6 @@
 DROP DATABASE IF EXISTS smart_home;
 CREATE DATABASE smart_home;
 
--- Make sure to select the database
-USE smart_home;
-
-
 USE smart_home;
 
 CREATE TABLE User (
@@ -99,6 +95,7 @@ DELIMITER ;
 
 
 -- TRIGGERS
+DELIMITER //
 
 CREATE TRIGGER after_device_deactivate
 AFTER UPDATE ON Device
@@ -134,3 +131,5 @@ BEGIN
         VALUES (NEW.device_ID, CURDATE(), CURTIME(), 0);
     END IF;
 END //
+
+DELIMITER ;
